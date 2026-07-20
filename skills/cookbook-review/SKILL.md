@@ -1,0 +1,261 @@
+# Cookbook Review Skill
+
+Review a Mistral AI cookbook file for content quality, structural completeness, and writing style. Produce a prioritized list of issues and suggested fixes.
+
+## When to use this skill
+
+Trigger when the user asks to:
+- Review, audit, or proofread a cookbook file
+- Check if a cookbook follows the standard format
+- Get feedback on a draft cookbook
+- Validate a cookbook before merging
+
+## How to perform a review
+
+1. Read the target file in full using the Read tool.
+2. Evaluate it against the **Structure checklist** and **Writing style checklist** below.
+3. Output a structured review in the format specified at the end of this document.
+
+---
+
+## Cookbook structure template
+
+### Required sections (must be present)
+
+Every cookbook file must include these sections, in this order:
+
+```
+# [Title]                          ← H1: concise, task-oriented
+[One-sentence description]         ← immediately under title, no heading
+> [Status/note callout]            ← blockquote for beta APIs or important constraints
+
+## Prerequisites                   ← H2
+
+### Install                        ← H3
+
+### Required environment variables ← H3
+
+## [Main content section]          ← H2 (e.g., "Recipes", section name varies by cookbook)
+```
+
+Each **recipe or example** inside the main section must include:
+
+| Sub-element | Required | Notes |
+|---|---|---|
+| `**Goal:**` | Yes | One sentence. What this recipe accomplishes. |
+| `**When to use:**` | Yes | Bullet list of scenarios. |
+| Code block — Python | Yes (if SDK supports it) | Language-tagged ` ```python ``` ` |
+| Code block — TypeScript | Yes (if SDK supports it) | Language-tagged ` ```typescript ``` ` |
+| Code block — curl | Yes | Language-tagged ` ```bash ``` ` |
+| `**Example of output:**` or `**Output:**` | Yes | Fenced code block showing realistic output |
+| `**How it works:**` | Yes | Bullet list explaining the key mechanics |
+| `**Common errors & fixes:**` | Yes | Table with columns: Error \| Cause \| Fix |
+
+### Optional sections (include when relevant)
+
+| Section | When to include |
+|---|---|
+| Table of Contents | Cookbooks with 5+ recipes or 400+ lines |
+| Comparison table (e.g., API A vs. API B) | When two similar options exist and choice matters |
+| Named helper function section | When recipes share a utility function |
+| Python / TypeScript naming conventions | When SDK field names differ between languages |
+| Troubleshooting guide | When common runtime errors need extended explanations |
+| Error codes reference table | When the API returns many distinct HTTP error codes |
+
+### Sections to exclude
+
+Do not include these in a cookbook:
+
+- **Marketing language** — No "Mistral's powerful AI" or "cutting-edge capabilities."
+- **Generic introductions** — No "In today's world of AI..." or "As AI becomes more important..."
+- **Closing promotional statements** — No "Start building today!" or "Unlock the full potential."
+- **Theory-only sections without code** — Concepts must be paired with a concrete example.
+- **Repeated prerequisites** — State install instructions once; don't repeat them per recipe.
+- **Nested TOC duplication** — Don't list recipe sub-steps in the table of contents.
+- **Empty sections** — Remove any heading with no content beneath it.
+- **Changelog or version history** — Belongs in release notes, not cookbooks.
+- **Contributing guidelines** — Use the repo's CONTRIBUTING_GUIDE.md instead.
+
+---
+
+## Writing style checklist
+
+Based on the Mistral Writing Style Guide (see reference files below).
+
+### Voice and tone
+
+- **Be direct.** Lead with what the reader needs to do or know. Cut throat-clearing openers.
+  - Bad: "Before we dive into using connectors, it's worth understanding what they are."
+  - Good: "Connectors let the model call external tools via MCP."
+- **Write like you speak.** Use contractions (*it's*, *you'll*, *don't*). Avoid stiff, formal phrasing.
+  - Bad: "It is necessary to ensure that the client is initialized."
+  - Good: "Initialize the client before making requests."
+- **Address the reader as "you."** Don't use "the user" or "one" when you mean the person reading.
+- **Start statements with a verb.** Edit out "you can" when it isn't necessary.
+  - Bad: "You can also specify an optional timeout."
+  - Good: "Specify an optional timeout."
+- **Avoid weak openers.** Rewrite sentences that start with *there is*, *there are*, or *there were*.
+  - Bad: "There are two ways to authenticate."
+  - Good: "Two authentication methods are available."
+
+### Clarity and brevity
+
+- **Keep sentences short.** One idea per sentence. Three to seven lines per paragraph.
+- **Prune every excess word.** If a word doesn't add meaning, cut it.
+  - Bad: "In order to be able to make a request..."
+  - Good: "To make a request..."
+- **Use simple words.** Prefer *use* over *utilize*, *start* over *initiate*, *show* over *display*.
+- **Don't use jargon without defining it.** On first use, briefly explain non-obvious terms.
+- **Front-load headings and sentences.** Put the most important word or phrase first.
+
+### Headings
+
+- **Use sentence-style capitalization.** Capitalize only the first word and proper nouns.
+  - Bad: `## Creating A Connector With OAuth Authentication`
+  - Good: `## Creating a connector with OAuth authentication`
+- **No period at the end of headings.**
+- **Don't use ampersands (&) or plus signs (+)** unless referring to UI that contains them.
+- **Keep headings short and specific.** A heading should tell the reader exactly what they'll find.
+- **Use parallel structure** across headings at the same level.
+  - Bad mix: `## Create a connector`, `## Listing connectors`, `## How to delete a connector`
+  - Good: `## Create a connector`, `## List connectors`, `## Delete a connector`
+- **Avoid two headings in a row** without body text in between.
+
+### Lists
+
+- **Use bullet lists for unordered items; numbered lists for sequential steps.**
+- **Keep list items parallel** in grammar and structure.
+- **Include a comma before "and"** in a series of three or more items (Oxford comma).
+  - Bad: "Python, TypeScript and curl"
+  - Good: "Python, TypeScript, and curl"
+- **Don't use a period** at the end of single-sentence bullet items unless they are full sentences that continue into multiple sentences.
+
+### Punctuation
+
+- **One space after periods**, not two.
+- **No spaces around em dashes.** Use `—` not ` - ` for parenthetical dashes.
+- **Don't use a colon** at the end of headings or list introductions in most cases.
+- **Use straight quotes**, not curly/smart quotes, in code and code-adjacent content.
+
+### Code and code examples
+
+- **Every code block must have a language tag**: ` ```python `, ` ```typescript `, ` ```bash `.
+- **Never hard-code real credentials.** Use placeholders like `"your-api-key"` or `os.environ["MISTRAL_API_KEY"]`.
+- **Show expected output.** Always follow a code block with an example of what it prints or returns.
+- **Comment sparingly.** Add comments only when the logic isn't self-evident from the code. Don't state the obvious.
+- **Compile and test all code.** Verify that every example runs without errors.
+- **Prioritize frequently used elements.** Start with the simplest useful example; build toward complex.
+- **Placeholders must be obvious.** Any value the reader must replace should be clearly marked (e.g., `<your-connector-id>` or `"your-agent-id"`).
+- **Keep language parity.** If you show a Python example, show the equivalent TypeScript and curl unless a clear reason exists to omit one.
+
+### Accessibility and inclusive language
+
+See [`inclusive-language.md`](./inclusive-language.md) for the full guide.
+
+- **Use people-first language** when referring to people with disabilities.
+  - Bad: "blind users," "disabled developers"
+  - Good: "users who are blind," "developers with disabilities"
+- **Use gender-neutral terms.**
+  - Bad: "he," "she," "manpower," "chairman"
+  - Good: "they," "workforce," "chair"
+- **Avoid gendered pronouns in generic references.** Rewrite in second person or use plural.
+- **Avoid terms with unconscious racial bias.**
+  - Bad: "master/slave," "blacklist/whitelist"
+  - Good: "primary/subordinate," "allowlist/denylist"
+- **Don't use slang** that could be considered cultural appropriation.
+- **Use title-style capitalization** for racial and ethnic group names: Black, White, Indigenous, Hispanic, Latinx.
+
+### Terms to avoid in cookbook content
+
+| Avoid | Use instead |
+|---|---|
+| utilize | use |
+| initiate / instantiate (in prose) | start, create |
+| leverage (as a verb) | use, take advantage of |
+| seamless | (just describe what it does) |
+| robust | (just describe the capability) |
+| powerful | (just describe what it does) |
+| easy, simple | (omit — let the code demonstrate) |
+| just (minimizing word) | (omit) |
+| please | (omit — direct is fine) |
+| Note that... | (cut the throat-clearing; state the note directly) |
+| In order to | To |
+| It is important to | (state why it's important or cut) |
+| There is / there are | rewrite to lead with the subject |
+| you can | (cut when introducing a step the reader should do) |
+
+---
+
+## Review output format
+
+Write the review as a Markdown document with the following structure:
+
+```markdown
+## Cookbook review: [filename]
+
+### Summary
+[2–4 sentence overview of overall quality and the most critical issues]
+
+### Critical issues
+<!-- Must fix before publishing -->
+- **[Issue type]** [Line or section reference]: [What's wrong and why it matters]
+  - Suggested fix: [Concrete rewrite or action]
+
+### Moderate issues
+<!-- Should fix for quality -->
+- **[Issue type]** [Line or section reference]: [What's wrong]
+  - Suggested fix: [Concrete rewrite or action]
+
+### Minor issues
+<!-- Nice to fix, low impact -->
+- **[Issue type]** [Line or section reference]: [What's wrong]
+  - Suggested fix: [Concrete rewrite or action]
+
+### What's working well
+- [Positive observation]
+- [Positive observation]
+
+### Structure checklist
+| Section | Status | Notes |
+|---|---|---|
+| H1 title | ✅ / ❌ / ⚠️ | |
+| One-sentence description | ✅ / ❌ / ⚠️ | |
+| Status/note callout (if applicable) | ✅ / ❌ / N/A | |
+| Prerequisites > Install | ✅ / ❌ / ⚠️ | |
+| Prerequisites > Environment variables | ✅ / ❌ / ⚠️ | |
+| Goal per recipe | ✅ / ❌ / ⚠️ | |
+| When to use per recipe | ✅ / ❌ / ⚠️ | |
+| Code blocks (Python / TS / curl) | ✅ / ❌ / ⚠️ | |
+| Example output per recipe | ✅ / ❌ / ⚠️ | |
+| How it works per recipe | ✅ / ❌ / ⚠️ | |
+| Common errors table per recipe | ✅ / ❌ / ⚠️ | |
+| No forbidden sections | ✅ / ❌ | |
+```
+
+**Status key:**
+- ✅ Present and correct
+- ❌ Missing or incorrect (critical)
+- ⚠️ Present but needs improvement
+- N/A Not applicable for this cookbook
+
+**Issue type labels:**
+- `[Missing section]` — required section is absent
+- `[Forbidden section]` — section that shouldn't exist is present
+- `[Style]` — writing style violation
+- `[Clarity]` — confusing or ambiguous content
+- `[Code]` — code block issue (missing tag, hard-coded credential, no output shown, etc.)
+- `[Structure]` — heading level, ordering, or formatting problem
+- `[Accessibility]` — inclusive language or bias issue
+- `[Accuracy]` — likely factual or technical error (flag for human verification)
+
+---
+
+## Reference files
+
+These files live alongside this skill and contain the full guidance referenced above:
+
+- [`voice-and-tone.md`](./voice-and-tone.md) — Brand voice, three voice principles, top 10 writing tips with cookbook examples
+- [`checklists.md`](./checklists.md) — Acronyms, capitalization, grammar, numbers, procedures, punctuation, responsive content, text formatting, and word choice checklists
+- [`ai-terms.md`](./ai-terms.md) — Preferred AI terminology, terms to avoid, capitalization rules, describing model behavior
+- [`developer-content.md`](./developer-content.md) — Code examples (planning and writing), formatting developer text elements, reference documentation structure, procedure writing
+- [`inclusive-language.md`](./inclusive-language.md) — Gender-neutral language, accessibility terms, racial and ethnic language, bias-free technical terminology, militaristic language, inclusive code examples

@@ -1,0 +1,58 @@
+name: Cookbook review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'mistral/**/*.md'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+        with:
+          fetch-depth: 0   # full history required for git diff
+
+      - name: Set up Python
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r skills/cookbook-review/requirements.txt
+
+      - name: Detect new cookbook files
+        id: detect
+        run: |
+          # Only flag files that are new (A = Added) in this PR, not modifications.
+          git diff --diff-filter=A --name-only \
+            "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}" \
+            -- 'mistral/**/*.md' > new_cookbooks.txt
+
+          count=$(wc -l < new_cookbooks.txt | tr -d ' ')
+          echo "Found ${count} new cookbook file(s):"
+          cat new_cookbooks.txt
+
+          if [ "$count" -gt 0 ]; then
+            echo "has_files=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_files=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Review new cookbooks
+        if: steps.detect.outputs.has_files == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python skills/cookbook-review/review_pr.py new_cookbooks.txt
