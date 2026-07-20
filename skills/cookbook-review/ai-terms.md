@@ -70,6 +70,36 @@ Don't anthropomorphize models. They don't think, know, or feel—they generate, 
 
 ---
 
+## Mistral product names
+
+Use these names exactly as written. Don't prefix them with "Mistral" or "Mistral AI" unless indicated.
+
+| Correct | Do not use |
+|---|---|
+| Workflows | Mistral Workflows, Mistral AI Workflows |
+| Studio | Mistral Studio, AI Studio, Mistral AI Studio |
+| Vibe | Le Chat |
+| Vibe Code | Mistral Vibe Code |
+| Vibe Work | Mistral Vibe Work |
+
+**Workflows** — always standalone, never prefixed.
+- Correct: "Build a pipeline in Workflows."
+- Incorrect: "Use Mistral Workflows to orchestrate tasks."
+
+**Studio** — always standalone, never prefixed.
+- Correct: "Open the file in Studio."
+- Incorrect: "Log in to Mistral AI Studio."
+
+**Vibe** — the correct name for the product. Do not use *Le Chat*.
+- Correct: "Send a message in Vibe."
+- Incorrect: "Use Le Chat to chat with the model."
+
+**Vibe Code** and **Vibe Work** — full product names, used as written.
+- Correct: "Vibe Code integrates with your development environment."
+- Correct: "Manage your team's tasks in Vibe Work."
+
+---
+
 ## Voice and tone for AI content
 
 - Focus on what the developer can build, not on how impressive the technology is.
