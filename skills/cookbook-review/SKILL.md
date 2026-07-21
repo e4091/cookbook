@@ -62,6 +62,80 @@ Each **recipe or example** inside the main section must include:
 | Troubleshooting guide | When common runtime errors need extended explanations |
 | Error codes reference table | When the API returns many distinct HTTP error codes |
 
+### API key setup standard
+
+Every cookbook that requires a Mistral API key must follow this exact wording and structure. Flag any deviation as a **Critical** issue.
+
+#### Getting the key
+
+The "Prerequisites" section must include this sentence verbatim (Markdown links intact):
+
+> To complete this cookbook, you'll need a Mistral API key. In [Studio](https://console.mistral.ai), navigate to the [API keys section](https://console.mistral.ai/home?profile_dialog=api-keys) and create a new API key.
+
+Flag these as Critical and suggest the standard sentence:
+- Any other URL for creating an API key (e.g., `/api-keys`, `/dashboard`, or a bare `console.mistral.ai` link without the profile dialog deep-link)
+- Phrasing that omits the Studio link entirely
+- Using "Mistral AI dashboard," "Mistral Console," or any name other than "Studio" for the console
+
+#### .env file (Markdown cookbooks and Python projects)
+
+When the project uses a `.env` file, the instructions must use this exact wording and formatting:
+
+> Create a `.env` at the root of your project and add your Mistral API key:
+>
+> ```
+> MISTRAL_API_KEY=your-mistral-api-key
+> ```
+
+If the project requires additional API keys (e.g., a GitHub token or a third-party service key), list `MISTRAL_API_KEY` first and any project-specific keys below it:
+
+```
+MISTRAL_API_KEY=your-mistral-api-key
+OTHER_SERVICE_API_KEY=your-other-api-key
+```
+
+Flag these as Critical:
+- Values wrapped in quotes: `MISTRAL_API_KEY="your-key"` → remove the quotes
+- Wrong variable name: `MISTRAL_KEY` → must be `MISTRAL_API_KEY`
+- Missing code block language tag on `.env` content — use a plain fenced block (no language tag) for env files
+- Instructions that say "set an environment variable" without showing the `.env` file pattern
+
+Flag as Moderate:
+- `.env` instructions placed outside the Prerequisites section
+
+#### Notebook (.ipynb) API key cell
+
+Jupyter notebooks must load the key from the environment via dotenv. The first code cell (or the first cell that touches the API key) must follow this pattern:
+
+```python
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+api_key = os.environ["MISTRAL_API_KEY"]
+```
+
+Flag these as Critical:
+- Hard-coded API key strings in any cell
+- `MISTRAL_KEY` instead of `MISTRAL_API_KEY`
+- Using `os.getenv("MISTRAL_API_KEY")` without a fallback or error — prefer `os.environ["MISTRAL_API_KEY"]` so the notebook fails loudly if the key is missing
+
+Flag as Moderate:
+- Missing `load_dotenv()` call when a `.env` file is expected
+- `api_key = os.environ["MISTRAL_API_KEY"]` defined but never passed to the client constructor
+
+#### Shell / curl cookbooks
+
+Cookbooks that are primarily curl-based (no Python runtime) may use shell exports instead of a `.env`:
+
+```bash
+export MISTRAL_API_KEY="your-api-key"
+```
+
+This is acceptable for curl-only examples. Do not flag this pattern as an error. Still flag the wrong variable name (`MISTRAL_KEY`) or a missing API key instruction.
+
+---
+
 ### Sections to exclude
 
 Do not include these in a cookbook:
