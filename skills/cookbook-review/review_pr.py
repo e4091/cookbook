@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-Review new Mistral cookbook files added in a pull request.
+Review Mistral cookbook files added or modified in a pull request.
 
 Reads the Mistral Writing Style Guide from skills/cookbook-review/,
-calls the Mistral API for each new file, then posts a GitHub PR review
+calls the Mistral API for each changed file, then posts a GitHub PR review
 with inline suggestions and comments.
+
+For new files (A), the full content is reviewed.
+For modified files (M), only the changed cells/lines are reviewed.
 
 Required environment variables:
   GITHUB_TOKEN         GitHub Actions token (pull-requests: write)
@@ -15,16 +18,17 @@ Required environment variables:
   BASE_SHA             Commit SHA of the base branch
 
 Usage:
-  python review_pr.py <path-to-newfiles-list>
+  python review_pr.py <path-to-changedfiles-list>
 
-The newfiles list is a plain-text file with one file path per line,
-produced by `git diff --diff-filter=A --name-only`.
+The changedfiles list is a plain-text file with one file path per line,
+produced by `git diff --diff-filter=AM --name-only`.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -37,6 +41,7 @@ MISTRAL_API_KEY = os.environ["MISTRAL_API_KEY"]
 REPO = os.environ["GITHUB_REPOSITORY"]
 PR_NUMBER = int(os.environ["PR_NUMBER"])
 HEAD_SHA = os.environ["HEAD_SHA"]
+BASE_SHA = os.environ["BASE_SHA"]
 
 GITHUB_API = "https://api.github.com"
 GH_HEADERS = {
@@ -135,6 +140,87 @@ def read_notebook(filepath: str) -> tuple[str, int]:
     return content, total
 
 
+# ── Diff-aware reading (modified files only) ──────────────────────────────────
+
+
+def get_file_status(filepath: str) -> str:
+    """Return 'A' (added) or 'M' (modified) for this file in the current PR."""
+    result = subprocess.run(
+        ["git", "diff", "--diff-filter=AM", "--name-status", BASE_SHA, HEAD_SHA, "--", filepath],
+        capture_output=True, text=True,
+    )
+    for line in result.stdout.splitlines():
+        parts = line.split("\t", 1)
+        if len(parts) == 2 and parts[1].strip() == filepath:
+            return parts[0].strip()  # 'A' or 'M'
+    return "A"  # default to new-file behaviour if status is unclear
+
+
+def read_changed_cells(filepath: str) -> tuple[str, int]:
+    """
+    For a modified notebook, return only the cells whose source changed.
+
+    Compares the notebook at BASE_SHA against the current version and surfaces
+    each changed or added cell labelled with its index and change type.
+    """
+    # Load the base version from git history
+    base_result = subprocess.run(
+        ["git", "show", f"{BASE_SHA}:{filepath}"],
+        capture_output=True, text=True,
+    )
+    if base_result.returncode != 0:
+        # File is new or base unavailable — fall back to full read
+        return read_notebook(filepath)
+
+    try:
+        base_cells = json.loads(base_result.stdout).get("cells", [])
+    except json.JSONDecodeError:
+        return read_notebook(filepath)
+
+    curr_cells = json.loads(Path(filepath).read_text()).get("cells", [])
+
+    parts: list[str] = []
+    for i in range(min(len(base_cells), len(curr_cells))):
+        base_src = "".join(base_cells[i].get("source", []))
+        curr_src = "".join(curr_cells[i].get("source", []))
+        if base_src != curr_src:
+            cell_type = curr_cells[i].get("cell_type", "unknown")
+            parts.append(f"[Cell {i + 1} — {cell_type} — MODIFIED]\n{curr_src}")
+
+    for i in range(len(base_cells), len(curr_cells)):
+        src = "".join(curr_cells[i].get("source", []))
+        if src.strip():
+            cell_type = curr_cells[i].get("cell_type", "unknown")
+            parts.append(f"[Cell {i + 1} — {cell_type} — ADDED]\n{src}")
+
+    if not parts:
+        return "(No cell content changed — only notebook metadata or output was modified.)", 0
+
+    return "\n\n".join(parts), len(parts)
+
+
+def read_changed_lines(filepath: str) -> tuple[str, int]:
+    """
+    For a modified markdown file, return the unified diff of changed lines.
+
+    Shows added (+) and removed (-) lines with surrounding context so the
+    reviewer understands what changed without re-reading the entire file.
+    """
+    result = subprocess.run(
+        ["git", "diff", "-U5", BASE_SHA, HEAD_SHA, "--", filepath],
+        capture_output=True, text=True,
+    )
+    diff = result.stdout.strip()
+    if not diff:
+        return "(No line-level changes detected.)", 0
+
+    lines = diff.splitlines()
+    # Strip the extended git header (index, ---, +++ lines) — keep hunks only
+    hunk_start = next((i for i, l in enumerate(lines) if l.startswith("@@")), 0)
+    hunks = "\n".join(lines[hunk_start:MAX_REVIEW_LINES])
+    return hunks, len(lines)
+
+
 # ── Mistral API call ──────────────────────────────────────────────────────────
 
 _SYSTEM_PROMPT_MD = """\
@@ -210,13 +296,88 @@ RULES FOR EACH FIELD
 """
 
 
-def call_mistral(filepath: str, content: str, style_guide: str) -> dict:
+_SYSTEM_PROMPT_MD_DIFF = """\
+You are a technical documentation reviewer for Mistral AI cookbooks.
+Review only the CHANGED lines of the provided Markdown file, shown as a unified diff.
+Lines beginning with '+' are additions; lines beginning with '-' are removals;
+context lines (no prefix) are unchanged — do not flag them.
+
+{style_guide}
+
+---
+
+OUTPUT RULES
+Respond with a single, valid JSON object — no text before or after. Use this exact schema:
+
+{{
+  "summary": "<2–4 sentence assessment of the changed content only>",
+  "verdict": "approve" | "comment" | "request_changes",
+  "line_comments": [],
+  "file_comments": [
+    {{
+      "severity": "critical" | "moderate" | "minor",
+      "body": "<comment about a changed line — quote the specific '+' line you are flagging>"
+    }}
+  ]
+}}
+
+RULES FOR EACH FIELD
+- Only comment on added ('+') lines. Ignore removed ('-') and context lines.
+- verdict: "request_changes" if any critical issue exists; "comment" for moderate/minor only; "approve" if the changes look good.
+- line_comments must always be an empty array.
+- Limit to the 8 most impactful issues.
+- Do not invent problems. Flag only genuine violations of the style guide.
+"""
+
+_SYSTEM_PROMPT_IPYNB_DIFF = """\
+You are a technical documentation reviewer for Mistral AI cookbooks.
+Review only the CHANGED cells of the provided Jupyter notebook.
+Each cell shown is labelled MODIFIED or ADDED — these are the only cells that changed in this PR.
+Apply the Mistral Writing Style Guide below to the changed cell content only.
+
+{style_guide}
+
+---
+
+OUTPUT RULES
+Respond with a single, valid JSON object — no text before or after. Use this exact schema:
+
+{{
+  "summary": "<2–4 sentence assessment of the changed cells only>",
+  "verdict": "approve" | "comment" | "request_changes",
+  "line_comments": [],
+  "file_comments": [
+    {{
+      "severity": "critical" | "moderate" | "minor",
+      "cell": <integer cell number from the input, or null for notebook-wide issues>,
+      "body": "<comment referencing the specific cell and quoting the problematic text>"
+    }}
+  ]
+}}
+
+RULES FOR EACH FIELD
+- Only evaluate the cells shown — do not speculate about unchanged cells.
+- verdict: "request_changes" if any critical issue exists; "comment" for moderate/minor only; "approve" if the changes look good.
+- line_comments must always be an empty array — notebooks use file_comments only.
+- file_comments[].cell: the cell number from the label (e.g. 3 for "[Cell 3 — markdown — MODIFIED]"). Use null for notebook-wide issues.
+- Limit to the 8 most impactful issues.
+- Do not invent problems. Flag only genuine violations of the style guide.
+"""
+
+
+def call_mistral(filepath: str, content: str, style_guide: str, is_diff: bool = False) -> dict:
     """Call the Mistral API and return the parsed review as a Python dict."""
     is_notebook = filepath.endswith(".ipynb")
-    template = _SYSTEM_PROMPT_IPYNB if is_notebook else _SYSTEM_PROMPT_MD
+    if is_diff:
+        template = _SYSTEM_PROMPT_IPYNB_DIFF if is_notebook else _SYSTEM_PROMPT_MD_DIFF
+    else:
+        template = _SYSTEM_PROMPT_IPYNB if is_notebook else _SYSTEM_PROMPT_MD
     system = template.format(style_guide=style_guide)
 
-    content_label = "Notebook cells" if is_notebook else "File content with line numbers"
+    if is_diff:
+        content_label = "Changed notebook cells" if is_notebook else "Unified diff of changes"
+    else:
+        content_label = "Notebook cells" if is_notebook else "File content with line numbers"
     user = (
         f"Review this file: `{filepath}`\n\n"
         f"{content_label}:\n```\n{content}\n```"
@@ -404,17 +565,30 @@ def main() -> None:
             continue
 
         is_notebook = filepath.endswith(".ipynb")
+        status = get_file_status(filepath)
+        is_diff = status == "M"
 
-        if is_notebook:
+        if is_diff:
+            kind = "cells" if is_notebook else "lines"
+            print(f"  Modified file — reviewing only changed {kind}.")
+            if is_notebook:
+                content, total = read_changed_cells(filepath)
+            else:
+                content, total = read_changed_lines(filepath)
+            if total == 0:
+                print("  No content changes detected — skipping review.")
+                continue
+            print(f"  {total} changed {kind}.")
+        elif is_notebook:
             content, total = read_notebook(filepath)
-            print(f"  {total} cell(s), reviewing up to {MAX_REVIEW_CELLS}.")
+            print(f"  New file — {total} cell(s), reviewing up to {MAX_REVIEW_CELLS}.")
         else:
             content, total = read_numbered(filepath)
-            print(f"  {total} total line(s), reviewing up to {MAX_REVIEW_LINES}.")
+            print(f"  New file — {total} total line(s), reviewing up to {MAX_REVIEW_LINES}.")
 
         print("  Calling Mistral API ...")
         try:
-            review = call_mistral(filepath, content, style_guide)
+            review = call_mistral(filepath, content, style_guide, is_diff=is_diff)
         except Exception as exc:
             print(f"  Mistral API call failed: {exc}")
             exit_code = 1
@@ -430,8 +604,8 @@ def main() -> None:
 
         print("  Posting GitHub PR review ...")
         try:
-            # Notebooks skip inline comments — all feedback lands in the review body.
-            post_review(filepath, review, 0 if is_notebook else total)
+            # Notebooks and diff reviews skip inline comments — feedback lands in the review body.
+            post_review(filepath, review, 0 if (is_notebook or is_diff) else total)
         except requests.HTTPError as exc:
             print(f"  Failed to post review: {exc}")
             print(f"  Response body: {exc.response.text[:500]}")
